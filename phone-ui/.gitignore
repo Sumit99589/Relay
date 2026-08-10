@@ -1,0 +1,13 @@
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+
+# OS & Logs
+.DS_Store
+*.log
+
+# Next.js / TypeScript
+.next/
+node_modules/
+*.tsbuildinfo

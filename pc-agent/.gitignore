@@ -1,0 +1,20 @@
+# Environment & Secrets
+.env
+.env.local
+.env.*
+!.env.example
+client_secret*.json
+credentials.json
+token.json
+*.pem
+*.key
+
+# Python build & environments
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Logs & OS
+*.log
+.DS_Store
