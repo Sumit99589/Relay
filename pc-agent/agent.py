@@ -118,7 +118,7 @@ async def heartbeat(websocket):
         pass  # Connection closed, heartbeat stops
 
 
-async def connect_and_listen():
+async def connect_and_listen(on_connect=None):
     """Connect to the relay server and listen for messages."""
     # pyrefly: ignore [missing-import]
     import websockets
@@ -132,10 +132,12 @@ async def connect_and_listen():
     async with websockets.connect(
         url,
         ping_interval=20,
-        ping_timeout=10,
+        ping_timeout=30,
         max_size=10 * 1024 * 1024,  # 10 MB max message size
     ) as websocket:
         logger.info("Connected to relay server!")
+        if on_connect:
+            on_connect()
 
         # Start heartbeat task
         heartbeat_task = asyncio.create_task(heartbeat(websocket))
@@ -157,9 +159,13 @@ async def run_agent():
     """Main loop with auto-reconnect and exponential backoff."""
     reconnect_delay = INITIAL_RECONNECT_DELAY
 
+    def reset_reconnect_delay():
+        nonlocal reconnect_delay
+        reconnect_delay = INITIAL_RECONNECT_DELAY
+
     while True:
         try:
-            await connect_and_listen()
+            await connect_and_listen(on_connect=reset_reconnect_delay)
             # If we get here, the connection closed cleanly
             reconnect_delay = INITIAL_RECONNECT_DELAY
         except KeyboardInterrupt:

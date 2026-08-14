@@ -585,7 +585,8 @@ async def run_gemini_reasoning(user_message: str):
             response = None
             for retry in range(4):
                 try:
-                    response = gemini_client.models.generate_content(
+                    response = await asyncio.to_thread(
+                        gemini_client.models.generate_content,
                         model=GEMINI_MODEL,
                         contents=contents,
                         config=types.GenerateContentConfig(
