@@ -1,5 +1,7 @@
 # Remote PC Control Agent
 
+[![Tests](https://github.com/Sumit99589/Relay/actions/workflows/tests.yml/badge.svg)](https://github.com/Sumit99589/Relay/actions/workflows/tests.yml)
+
 Control your PC remotely from your phone using natural language commands. An AI agent (powered by Gemini) reasons about what to do, executes operations on your PC, and reports back — all through a chat interface.
 
 ```
@@ -119,21 +121,41 @@ Without Gmail configured, everything else works — email just returns a "not co
 
 ## 🔒 Security
 
-- **Auth token**: All WebSocket connections require a shared secret
-- **Folder scoping**: File operations restricted to `~/Desktop`, `~/Documents`, `~/Downloads`, `/mnt`
-- **Command whitelist**: Only safe, read-only commands allowed
-- **Confirmation**: Destructive actions require explicit user approval
-- **Audit log**: Every tool call logged with timestamp, accessible from the UI
+- **Auth token**: Both WebSocket endpoints and the `/audit-log` and `/status` routes require the shared secret; a bad token closes the socket with code `4001`
+- **Folder scoping**: File operations resolve symlinks and `..` with `realpath` and are restricted to `ALLOWED_FOLDERS` (the example `.env` scopes them to `~/Desktop`, `~/Documents`, `~/Downloads`, `/mnt`; if the variable is unset the agent defaults to `/`)
+- **Injection-safe app commands**: `run_app_command` only runs pre-defined git/docker/npm/process templates, and every argument is escaped with `shlex.quote`
+- **Confirmation**: Deleting a file, or overwriting an existing one, requires explicit approval on the phone
+- **Audit log**: The last 200 tool calls are logged with timestamp and status, accessible from the UI
 
-## 🛠️ Allowed Commands
+## 🛠️ Free-form Commands (`run_command`)
+
+By default `run_command` is unrestricted (`ALLOW_UNRESTRICTED_COMMANDS=true`), so the agent can use pipes and redirection. Set `ALLOW_UNRESTRICTED_COMMANDS=false` in the PC agent's `.env` to switch to whitelist mode, where only these commands (plus their Windows equivalents) are allowed and patterns such as `rm`, `sudo` and `dd` are blocked:
 
 ```
 ls, dir, find, tree, cat, head, tail, wc, grep,
 df, du, free, uptime, uname, hostname, whoami, date,
-zip, tar, gzip, unzip, echo, pwd, which, file, stat
+zip, tar, gzip, unzip, echo, pwd, env, printenv, which, file, stat, md5sum, sha256sum
 ```
 
-Piping (`|`), chaining (`&&`, `;`), and redirection (`>`, `<`) are blocked.
+## 🧪 Testing
+
+The test suite runs offline: Gemini is replaced by a scripted fake, so no API key or network is needed. GitHub Actions runs it on every push and pull request against Python 3.11, 3.12 and 3.13.
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r relay-server/requirements.txt -r pc-agent/requirements.txt -r requirements-dev.txt
+pytest
+```
+
+What is covered:
+
+| Area | Tests |
+|---|---|
+| Path sandbox (`pc-agent/tests/test_file_ops.py`) | `..` traversal, symlink escapes, sibling folders sharing a prefix (`/x/allowed-evil`), every file tool refusing out-of-sandbox paths |
+| Command injection (`pc-agent/tests/test_app_commands.py`) | `;`, `&&`, `\|`, `$()`, backticks and newlines stay a single argument, verified in a real shell; output truncation; timeouts |
+| Whitelist mode (`pc-agent/tests/test_command_runner.py`) | non-whitelisted commands rejected, blocked patterns win after a whitelisted command, rejected commands never reach `subprocess` |
+| API and auth (`relay-server/tests/test_api.py`) | token checks on REST and WebSocket endpoints, phone/PC connection status, audit-log cap |
+| Agent loop (`relay-server/tests/test_agent_loop.py`) | PC call timeouts, confirmation gate, self-correction recovery and give-up, plan revisions, exponential backoff on 429/503 |
 
 ## 📝 License
 
